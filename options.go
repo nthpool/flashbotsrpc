@@ -35,8 +35,23 @@ func WithDebug(enabled bool) func(rpc *FlashbotsRPC) {
 	}
 }
 
+// BroadcastRPC WithLogger set custom logger
 func BroadcastRPCWithLogger(l logger) func(rpc *BuilderBroadcastRPC) {
 	return func(rpc *BuilderBroadcastRPC) {
 		rpc.log = l
+	}
+}
+
+// BroadcastRPC WithHttpClient set custom http client
+func BroadcastRPCWithHttpClient(client httpClient) func(rpc *BuilderBroadcastRPC) {
+	return func(rpc *BuilderBroadcastRPC) {
+		rpc.client = client
+	}
+}
+
+// BroadcastRPC WithDebug set debug flag
+func BroadcastRPCWithDebug(enabled bool) func(rpc *BuilderBroadcastRPC) {
+	return func(rpc *BuilderBroadcastRPC) {
+		rpc.Debug = enabled
 	}
 }
