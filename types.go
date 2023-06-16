@@ -412,6 +412,7 @@ type FlashbotsSendBundleResponse struct {
 
 type BuilderBroadcastResponse struct {
 	BundleResponse FlashbotsSendBundleResponse `json:"bundleResponse"`
+	URL            string                      `json:"url"`
 	Err            error                       `json:"err"`
 }
 
