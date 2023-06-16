@@ -34,3 +34,9 @@ func WithDebug(enabled bool) func(rpc *FlashbotsRPC) {
 		rpc.Debug = enabled
 	}
 }
+
+func BroadcastRPCWithLogger(l logger) func(rpc *BuilderBroadcastRPC) {
+	return func(rpc *BuilderBroadcastRPC) {
+		rpc.log = l
+	}
+}
