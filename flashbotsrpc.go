@@ -766,12 +766,12 @@ func (broadcaster *BuilderBroadcastRPC) BroadcastBundle(privKey *ecdsa.PrivateKe
 	responses := []BuilderBroadcastResponse{}
 
 	for _, requestResponse := range requestResponses {
-		if requestResponse.Err != nil {
-			responses = append(responses, BuilderBroadcastResponse{Err: requestResponse.Err})
-		}
 		fbResponse := FlashbotsSendBundleResponse{}
 		err := json.Unmarshal(requestResponse.Msg, &fbResponse)
-		responses = append(responses, BuilderBroadcastResponse{BundleResponse: fbResponse, Err: err})
+		if err != nil {
+			broadcaster.log.Println(err)
+		}
+		responses = append(responses, BuilderBroadcastResponse{BundleResponse: fbResponse, URL: requestResponse.URL, Err: requestResponse.Err})
 	}
 
 	return responses
@@ -779,7 +779,13 @@ func (broadcaster *BuilderBroadcastRPC) BroadcastBundle(privKey *ecdsa.PrivateKe
 
 type broadcastRequestResponse struct {
 	Msg json.RawMessage
+	URL string
 	Err error
+}
+
+type broadcastResponseBody struct {
+	URL  string
+	Body []byte
 }
 
 func (broadcaster *BuilderBroadcastRPC) broadcastRequest(method string, privKey *ecdsa.PrivateKey, params ...interface{}) []broadcastRequestResponse {
@@ -806,7 +812,7 @@ func (broadcaster *BuilderBroadcastRPC) broadcastRequest(method string, privKey 
 	signature := crypto.PubkeyToAddress(privKey.PublicKey).Hex() + ":" + hexutil.Encode(sig)
 
 	var wg sync.WaitGroup
-	responseCh := make(chan []byte)
+	responseCh := make(chan broadcastResponseBody)
 
 	// Iterate over the URLs and send requests concurrently
 	for _, url := range broadcaster.urls {
@@ -815,7 +821,7 @@ func (broadcaster *BuilderBroadcastRPC) broadcastRequest(method string, privKey 
 		go func(url string) {
 			defer wg.Done()
 
-			// Create a new HTTP GET request
+			// Create a new HTTP POST request
 			req, err := http.NewRequest("POST", url, bytes.NewBuffer(body))
 			if err != nil {
 				return
@@ -843,10 +849,10 @@ func (broadcaster *BuilderBroadcastRPC) broadcastRequest(method string, privKey 
 			}
 
 			// Send the response body through the channel
-			responseCh <- body
+			responseCh <- broadcastResponseBody{url, body}
 
 			if broadcaster.Debug {
-				broadcaster.log.Println(fmt.Sprintf("%s\nRequest: %s\nSignature: %s\nResponse: %s\n", method, body, signature, string(body)))
+				broadcaster.log.Println("Method:", method, "URL:", url, "Status:", response.StatusCode, "Response:", string(body))
 			}
 
 		}(url)
@@ -859,28 +865,23 @@ func (broadcaster *BuilderBroadcastRPC) broadcastRequest(method string, privKey 
 
 	responses := []broadcastRequestResponse{}
 	for data := range responseCh {
+		resp := new(rpcResponse)
+		var relayError error
 		// On error, response looks like this instead of JSON-RPC: {"error":"block param must be a hex int"}
 		errorResp := new(RelayErrorResponse)
-		if err := json.Unmarshal(data, errorResp); err == nil && errorResp.Error != "" {
+		if err := json.Unmarshal(data.Body, errorResp); err == nil && errorResp.Error != "" {
 			// relay returned an error
-			responseArr := []broadcastRequestResponse{{Msg: nil, Err: fmt.Errorf("%w: %s", ErrRelayErrorResponse, errorResp.Error)}}
-			return responseArr
+			relayError = fmt.Errorf("%w: %s", ErrRelayErrorResponse, errorResp.Error)
+		} else if err := json.Unmarshal(data.Body, resp); err != nil {
+			relayError = err
+		} else if resp.Error != nil {
+			relayError = fmt.Errorf("%w: %s", ErrRelayErrorResponse, (*resp).Error.Message)
 		}
-
-		resp := new(rpcResponse)
-		if err := json.Unmarshal(data, resp); err != nil {
-			responseArr := []broadcastRequestResponse{{Msg: nil, Err: err}}
-			return responseArr
-		}
-
-		if resp.Error != nil {
-			responseArr := []broadcastRequestResponse{{Msg: nil, Err: fmt.Errorf("%w: %s", ErrRelayErrorResponse, (*resp).Error.Message)}}
-			return responseArr
-		}
-
+		// Include the URL in the response so we know if a particular relay returns an error
 		responses = append(responses, broadcastRequestResponse{
 			Msg: resp.Result,
-			Err: nil,
+			URL: data.URL,
+			Err: relayError,
 		})
 	}
 
