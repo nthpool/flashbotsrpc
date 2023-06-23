@@ -843,16 +843,16 @@ func (broadcaster *BuilderBroadcastRPC) broadcastRequest(method string, privKey 
 			}
 
 			// Read the response body
-			body, err := ioutil.ReadAll(response.Body)
+			resbody, err := ioutil.ReadAll(response.Body)
 			if err != nil {
 				return
 			}
 
 			// Send the response body through the channel
-			responseCh <- broadcastResponseBody{url, body}
+			responseCh <- broadcastResponseBody{url, resbody}
 
 			if broadcaster.Debug {
-				broadcaster.log.Println("Method:", method, "URL:", url, "Status:", response.StatusCode, "Response:", string(body))
+				broadcaster.log.Println("Method:", method, "URL:", url, "Status:", response.StatusCode, "Request:", string(body), "Response:", string(resbody))
 			}
 
 		}(url)
@@ -869,9 +869,13 @@ func (broadcaster *BuilderBroadcastRPC) broadcastRequest(method string, privKey 
 		var relayError error
 		// On error, response looks like this instead of JSON-RPC: {"error":"block param must be a hex int"}
 		errorResp := new(RelayErrorResponse)
-		if err := json.Unmarshal(data.Body, errorResp); err == nil && errorResp.Error != "" {
+		if err := json.Unmarshal(data.Body, errorResp); err == nil {
 			// relay returned an error
-			relayError = fmt.Errorf("%w: %s", ErrRelayErrorResponse, errorResp.Error)
+			if errorResp.Error != "" {
+				relayError = fmt.Errorf("%w: %s", ErrRelayErrorResponse, errorResp.Error)
+			} else if errorResp.Message != "" {
+				relayError = fmt.Errorf("%w: %s", ErrRelayErrorResponse, errorResp.Message)
+			}
 		} else if err := json.Unmarshal(data.Body, resp); err != nil {
 			relayError = err
 		} else if resp.Error != nil {

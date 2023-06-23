@@ -328,7 +328,8 @@ func (proxy *proxyBlockWithoutTransactions) toBlock() Block {
 }
 
 type RelayErrorResponse struct {
-	Error string `json:"error"`
+	Error   string `json:"error,omitempty"`
+	Message string `json:"message,omitempty"`
 }
 
 type FlashbotsUserStats struct {
