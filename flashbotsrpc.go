@@ -869,7 +869,7 @@ func (broadcaster *BuilderBroadcastRPC) broadcastRequest(method string, privKey 
 		var relayError error
 		// On error, response looks like this instead of JSON-RPC: {"error":"block param must be a hex int"}
 		errorResp := new(RelayErrorResponse)
-		if err := json.Unmarshal(data.Body, errorResp); err == nil {
+		if err := json.Unmarshal(data.Body, errorResp); err == nil && (errorResp.Error != "" || errorResp.Message != "") {
 			// relay returned an error
 			if errorResp.Error != "" {
 				relayError = fmt.Errorf("%w: %s", ErrRelayErrorResponse, errorResp.Error)
