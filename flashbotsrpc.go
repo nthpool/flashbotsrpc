@@ -769,7 +769,11 @@ func (broadcaster *BuilderBroadcastRPC) BroadcastBundle(privKey *ecdsa.PrivateKe
 		fbResponse := FlashbotsSendBundleResponse{}
 		err := json.Unmarshal(requestResponse.Msg, &fbResponse)
 		if err != nil {
-			broadcaster.log.Println(err)
+			// attempt to unmarshal from a string
+			err := json.Unmarshal(requestResponse.Msg, &fbResponse.BundleHash)
+			if err != nil {
+				broadcaster.log.Println(err)
+			}
 		}
 		responses = append(responses, BuilderBroadcastResponse{BundleResponse: fbResponse, URL: requestResponse.URL, Err: requestResponse.Err})
 	}
