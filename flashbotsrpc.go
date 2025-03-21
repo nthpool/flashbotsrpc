@@ -734,12 +734,13 @@ func (rpc *FlashbotsRPC) FlashbotsCancelPrivateTransaction(privKey *ecdsa.Privat
 }
 
 type BuilderBroadcastRPC struct {
-	urls    []string
-	client  httpClient
-	log     logger
-	Debug   bool
-	Headers map[string]string // Additional headers to send with the request
-	Timeout time.Duration
+	urls                []string
+	client              httpClient
+	log                 logger
+	Debug               bool
+	Headers             map[string]string // Additional headers to send with the request
+	Timeout             time.Duration
+	SendBundleNamespace *string // Namespace for the sendBundle method
 }
 
 // NewBuilderBroadcastRPC create broadcaster rpc client with given url
@@ -761,7 +762,13 @@ func NewBuilderBroadcastRPC(urls []string, options ...func(rpc *BuilderBroadcast
 
 // https://docs.flashbots.net/flashbots-auction/searchers/advanced/rpc-endpoint/#eth_sendbundle
 func (broadcaster *BuilderBroadcastRPC) BroadcastBundle(privKey *ecdsa.PrivateKey, param FlashbotsSendBundleRequest) []BuilderBroadcastResponse {
-	requestResponses := broadcaster.broadcastRequest("eth_sendBundle", privKey, param)
+	var method string
+	if broadcaster.SendBundleNamespace != nil {
+		method = *broadcaster.SendBundleNamespace + "_sendBundle"
+	} else {
+		method = "eth_sendBundle"
+	}
+	requestResponses := broadcaster.broadcastRequest(method, privKey, param)
 
 	responses := []BuilderBroadcastResponse{}
 
